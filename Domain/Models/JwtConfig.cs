@@ -1,4 +1,4 @@
-﻿namespace AuthApp.Configuration;
+﻿namespace Domain.Models;
 
 public class JwtConfig
 {

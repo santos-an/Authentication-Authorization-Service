@@ -1,6 +1,4 @@
-﻿using Domain.Models;
-
-namespace Domain.Dtos.Responses;
+﻿namespace Domain.Dtos.Responses;
 
 public class UserRegistrationResponse : AuthResult
 {

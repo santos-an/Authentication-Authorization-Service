@@ -1,22 +1,32 @@
-﻿using AuthApp.Services;
+﻿using Api.Interfaces;
 using Domain.Dtos.Requests;
 using Domain.Dtos.Responses;
+using Infrastructure.Database;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-namespace AuthApp.Controllers;
+namespace Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<IdentityUser> _userManager;
-    private readonly ITokenService _tokenService;
+    private readonly ApplicationDbContext _dbContext;
+    private readonly ITokenValidator _validator;
+    private readonly ITokenGenerator _tokenGenerator;
 
-    public AuthController(UserManager<IdentityUser> userManager, ITokenService tokenService)
+    public AuthController(
+        UserManager<IdentityUser> userManager, 
+        ITokenGenerator tokenGenerator,
+        ApplicationDbContext dbContext, 
+        ITokenValidator validator)
     {
         _userManager = userManager;
-        _tokenService = tokenService;
+        _tokenGenerator = tokenGenerator;
+        _dbContext = dbContext;
+        _validator = validator;
     }
 
     [HttpPost("[action]")]
@@ -26,29 +36,24 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new UserRegistrationResponse
             {
-                Errors = new List<string>()
-                {
-                    "Invalid paylod"
-                },
+                Errors = new List<string> { "Invalid paylod" },
                 Success = false
             });
         }
 
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
-        if (existingUser != null)
+        if (existingUser is not null)
         {
             return BadRequest(new UserRegistrationResponse
             {
-                Errors = new List<string>()
-                {
-                    "Email already in use"
-                },
+                Errors = new List<string> { "Email already in use" },
                 Success = false
             });
         }
 
         var user = new IdentityUser { UserName = request.Username, Email = request.Email };
         var result = await _userManager.CreateAsync(user, request.Password);
+
         if (!result.Succeeded)
         {
             return BadRequest(new UserRegistrationResponse
@@ -57,14 +62,31 @@ public class AuthController : ControllerBase
                 Success = false
             });
         }
-        
-        var token = _tokenService.Generate(user);
 
-        return Ok(new UserRegistrationResponse
+        var tokenResult = _tokenGenerator.Generate(user);
+        if (tokenResult.IsFailure)
         {
-            Success = true,
-            Token = token
-        });
+            return BadRequest(new RefreshTokenResponse()
+            {
+                Success = false,
+                Errors = new List<string> { "Not possible to generate a new token" }
+            });
+        }
+        
+        var token = _tokenGenerator.Token;
+        var refreshToken = _tokenGenerator.RefreshToken;
+
+        await _dbContext.RefreshTokens.AddAsync(refreshToken);
+        await _dbContext.SaveChangesAsync();
+
+        var response = new UserRegistrationResponse
+        {
+            Token = token,
+            RefreshToken = refreshToken.Token,
+            Success = true
+        };
+        
+        return Ok(response);
     }
 
     [HttpPost("[action]")]
@@ -72,7 +94,7 @@ public class AuthController : ControllerBase
     {
         if (!ModelState.IsValid)
         {
-            return BadRequest(new UserRegistrationResponse
+            return BadRequest(new UserLoginResponse
             {
                 Errors = new List<string>()
                 {
@@ -85,35 +107,126 @@ public class AuthController : ControllerBase
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser is null)
         {
-            return BadRequest(new UserRegistrationResponse
+            return BadRequest(new UserLoginResponse
+            {
+                Errors = new List<string> { "Invalid login request" },
+                Success = false
+            });
+        }
+
+        var isPasswordCorrect = await _userManager.CheckPasswordAsync(existingUser, request.Password);
+        if (!isPasswordCorrect)
+        {
+            return BadRequest(new UserLoginResponse
+            {
+                Errors = new List<string> { "Invalid login request" },
+                Success = false
+            });
+        }
+
+        var tokenGenerationResult = _tokenGenerator.Generate(existingUser);
+        if (tokenGenerationResult.IsFailure)
+        {
+            return BadRequest(new UserLoginResponse()
+            {
+                Success = false,
+                Errors = new List<string> { "Not possible to generate a new token" }
+            });
+        }
+        
+        var token = _tokenGenerator.Token;
+        var refreshToken = _tokenGenerator.RefreshToken;
+
+        await _dbContext.RefreshTokens.AddAsync(refreshToken);
+        await _dbContext.SaveChangesAsync();
+
+        var response = new UserLoginResponse
+        {
+            Token = token,
+            RefreshToken = refreshToken.Token,
+            Success = true
+        };
+        
+        return Ok(response);
+    }
+
+    [HttpPost("[action]")]
+    public async Task<IActionResult> UpdateRefreshToken(NewTokenRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new RefreshTokenResponse
             {
                 Errors = new List<string>()
                 {
-                    "Invalid login request"
+                    "Invalid payload"
                 },
                 Success = false
             });
         }
 
-        var isCorrectPassword = await _userManager.CheckPasswordAsync(existingUser, request.Password);
-        if (!isCorrectPassword)
+        // Validation
+        var tokenValidationResult = await _validator.Validate(request.Token, request.RefreshToken);
+        if (tokenValidationResult.IsFailure)
         {
-            return BadRequest(new UserRegistrationResponse
+            return BadRequest(new RefreshTokenResponse
             {
-                Errors = new List<string>()
-                {
-                    "Invalid login request"
-                },
+                Errors = new List<string> { tokenValidationResult.Error },
+                Success = false
+            });
+        }
+        
+        // Expired
+        var isTokenExpired = _validator.IsExpired(request.Token);
+        if (!isTokenExpired)
+        {
+            return BadRequest(new RefreshTokenResponse
+            {
+                Errors = new List<string> { "Token can not be renewed because is not expired. Only expired tokens can be renewed" },
                 Success = false
             });
         }
 
-        var token = _tokenService.Generate(existingUser);
+        // Update current token as USED
+        var existingRefreshToken = await _dbContext.RefreshTokens.FirstOrDefaultAsync(t => t.Token == request.RefreshToken);
+        existingRefreshToken.IsUsed = true;
+        
+        _dbContext.RefreshTokens.Update(existingRefreshToken);
 
-        return Ok(new UserRegistrationResponse()
+        var existingUser = await _userManager.FindByIdAsync(existingRefreshToken.UserId);
+        if (existingUser is null)
         {
-            Success = true,
-            Token = token
-        });
+            return BadRequest(new RefreshTokenResponse
+            {
+                Errors = new List<string> { "User stored in token is not valid" },
+                Success = false
+            });
+        }
+        
+        // create a new Token
+        var tokenResult = _tokenGenerator.Generate(existingUser);
+        if (tokenResult.IsFailure)
+        {
+            return BadRequest(new RefreshTokenResponse()
+            {
+                Success = false,
+                Errors = new List<string> { "Not possible to generate a new token" }
+            });
+        }
+        
+        var token = _tokenGenerator.Token;
+        var refreshToken = _tokenGenerator.RefreshToken;
+
+        await _dbContext.RefreshTokens.AddAsync(refreshToken);
+        await _dbContext.SaveChangesAsync();
+
+        var response = new RefreshTokenResponse()
+        {
+            Token = token,
+            RefreshToken = refreshToken.Token,
+            Success = true
+        };
+        
+        return Ok(response);
     }
 }

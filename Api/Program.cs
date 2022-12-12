@@ -1,16 +1,16 @@
 using System.Text;
 using System.Text.Json.Serialization;
-using AuthApp.Configuration;
-using AuthApp.Extensions;
-using AuthApp.Services;
+using Api.Extensions;
+using Api.Interfaces;
+using Api.Services;
+using Domain.Extensions;
+using Infrastructure.Database;
+using Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
-using Persistence.Database;
-using Persistence.Extensions;
-using ServiceCollectionExtensions = AuthApp.Extensions.ServiceCollectionExtensions;
 
-namespace AuthApp;
+namespace Api;
 
 public static class Program
 {
@@ -28,10 +28,26 @@ public static class Program
 
     private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDi(configuration);
-        services.AddPersistence(configuration);
-        services.AddCustomAuthentication(configuration);
+        services.AddApi(configuration);
+        services.AddDomain(configuration);
+        services.AddInfrastructure(configuration);
 
+        services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(jwt =>
+            {
+                jwt.SaveToken = true;
+                jwt.TokenValidationParameters =  configuration.Get<TokenValidationParameters>() ?? throw new ApplicationException($"Please set the TokenValidationParameters in the container");
+            });
+
+        services
+            .AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            .AddEntityFrameworkStores<ApplicationDbContext>();
+        
         services.AddCors(options =>
         {
             options.AddPolicy("AllowAllHeaders", builder =>
@@ -42,9 +58,10 @@ public static class Program
                 }
             );
         });
-        services.AddControllers()
-            .AddJsonOptions(options =>
-                options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+        services
+            .AddControllers()
+            .AddJsonOptions(options => options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+        
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options => options.CustomSchemaIds(type => type.ToString()));
     }

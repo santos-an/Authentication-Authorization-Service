@@ -1,8 +1,9 @@
-﻿namespace Domain.Models;
+﻿namespace Domain.Dtos.Responses;
 
-public class AuthResult
+public abstract class AuthResult
 {
     public string Token { get; set; }
+    public string RefreshToken { get; set; }
     public bool Success { get; set; }
     public List<string> Errors { get; set; }
 }

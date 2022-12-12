@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using Infrastructure.Database;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Persistence.Database;
 
-namespace Persistence.Extensions;
+namespace Infrastructure.Extensions;
 
 public static class WebApplicationExtensions
 {

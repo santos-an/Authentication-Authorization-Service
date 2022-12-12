@@ -1,8 +1,9 @@
 ﻿using Domain.Models;
+using Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Persistence.Configuration;
+namespace Infrastructure.Configuration;
 
 public class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
@@ -15,6 +16,6 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Description).IsRequired();
         builder.Property(p => p.Price).IsRequired();
 
-        builder.HasData(ApplicationDbInitializer.Todos);
+        builder.HasData(ApplicationDbInitializer.Products);
     }
 }

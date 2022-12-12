@@ -1,0 +1,116 @@
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Api.Interfaces;
+using CSharpFunctionalExtensions;
+using Domain.Models;
+using Infrastructure.Database;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
+namespace Api.Services;
+
+public class TokenValidator : ITokenValidator
+{
+    private readonly ApplicationDbContext _dbContext;
+    private readonly JwtSecurityTokenHandler _handler;
+    private readonly TokenValidationParameters _validationParameters;
+
+    public TokenValidator(JwtSecurityTokenHandler handler, ApplicationDbContext dbContext, TokenValidationParameters validationParameters)
+    {
+        _handler = handler;
+        _dbContext = dbContext;
+        _validationParameters = validationParameters;
+    }
+
+    public async Task<Result> Validate(string token, string refreshToken)
+    {
+        return await TryValidateToken(token, refreshToken);
+    }
+
+    private async Task<Result> TryValidateToken(string token, string refreshToken)
+    {
+        try
+        {
+            // Validation 1 - using the TokenValidationParameters
+            var tokenInVerification = _handler.ValidateToken(token, _validationParameters, out var validatedToken);
+            
+            // Validation 2 - check if is JwtSecurityToken
+            if (validatedToken is not JwtSecurityToken jwtSecurityToken)
+                return Result.Failure("Token is not a JwtSecurityToken");
+
+            // Validation 3 - validate encryption
+            if (!IsSecurityAlgorithmValid(jwtSecurityToken)) 
+                return Result.Failure("Token algorithms does not matched");
+
+            // Validation 4 - db check
+            var storedRefreshToken = await GetPersistedToken(refreshToken);
+            if (storedRefreshToken is null)
+                return Result.Failure("Token does not exist in the database");
+
+            // Validation 5 - if was already used
+            if (storedRefreshToken.IsUsed)
+                return Result.Failure("Token has been used");
+
+            // Validation 6 - if was already revoked
+            if (storedRefreshToken.IsRevoked)
+                return Result.Failure("Token has been revoked");
+
+            // Validation 7 - validated the jwt id  
+            var jtiId = GetJwtId(tokenInVerification);
+            if (!IsValidJwtId(jtiId, storedRefreshToken))
+                return Result.Failure("Jwt id Token does not matched");
+
+            return Result.Success();
+        }
+        catch (Exception e)
+        {
+            return Result.Failure(e.Message);
+        }
+    }
+
+    private static bool IsSecurityAlgorithmValid(JwtSecurityToken jwtSecurityToken) => jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCulture);
+
+    private static DateTime UnixTimeSpampToDateTime(long utcExpirityDate)
+    {
+        var starterDate = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+
+        return starterDate.AddSeconds(utcExpirityDate).ToLocalTime();
+    }
+
+    private async Task<RefreshToken?> GetPersistedToken(string refreshToken)
+    {
+        return await _dbContext.RefreshTokens.FirstOrDefaultAsync(t => t.Token == refreshToken);
+    }
+
+    private static string GetJwtId(ClaimsPrincipal tokenInVerification)
+    {
+        var jtiClaim = tokenInVerification.Claims.FirstOrDefault(x => x.Type == Microsoft.IdentityModel.JsonWebTokens.JwtRegisteredClaimNames.Jti);
+        if (jtiClaim == null)
+            return string.Empty;
+
+        return jtiClaim.Value;
+    }
+
+    private static bool IsValidJwtId(string jtiId, RefreshToken storedRefreshToken)
+    {
+        return !string.IsNullOrEmpty(jtiId) && storedRefreshToken.JwtId == jtiId;
+    }
+
+    public bool IsExpired(string token)
+    {
+        var tokenInVerification = _handler.ValidateToken(token, _validationParameters, out _);
+        return IsExpired(tokenInVerification);
+    }
+
+    private static bool IsExpired(ClaimsPrincipal tokenInVerification)
+    {
+        var expiryClaim = tokenInVerification.Claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Exp)?.Value;
+        if (string.IsNullOrEmpty(expiryClaim))
+            return true;
+        
+        var utcExpiryDate = long.Parse(expiryClaim);
+        var expiryDateTime = UnixTimeSpampToDateTime(utcExpiryDate);
+
+        return DateTime.Now > expiryDateTime;
+    }
+}
