@@ -1,6 +1,7 @@
 ﻿using Api.Interfaces;
 using Domain.Dtos.Requests;
 using Domain.Dtos.Responses;
+using Domain.Models;
 using Infrastructure.Database;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,11 +18,7 @@ public class AuthController : ControllerBase
     private readonly ITokenValidator _validator;
     private readonly ITokenGenerator _tokenGenerator;
 
-    public AuthController(
-        UserManager<IdentityUser> userManager, 
-        ITokenGenerator tokenGenerator,
-        ApplicationDbContext dbContext, 
-        ITokenValidator validator)
+    public AuthController(UserManager<IdentityUser> userManager, ITokenGenerator tokenGenerator, ApplicationDbContext dbContext, ITokenValidator validator)
     {
         _userManager = userManager;
         _tokenGenerator = tokenGenerator;
@@ -53,7 +50,6 @@ public class AuthController : ControllerBase
 
         var user = new IdentityUser { UserName = request.Username, Email = request.Email };
         var result = await _userManager.CreateAsync(user, request.Password);
-
         if (!result.Succeeded)
         {
             return BadRequest(new UserRegistrationResponse
@@ -63,7 +59,18 @@ public class AuthController : ControllerBase
             });
         }
 
-        var tokenResult = _tokenGenerator.Generate(user);
+        // add role to user
+        var roleResult = await _userManager.AddToRoleAsync(user, Roles.AppUser);
+        if (!roleResult.Succeeded)
+        {
+            return BadRequest(new RefreshTokenResponse()
+            {
+                Success = false,
+                Errors = roleResult.Errors.Select(e => e.Description).ToList()
+            });
+        }
+
+        var tokenResult = await _tokenGenerator.Generate(user);
         if (tokenResult.IsFailure)
         {
             return BadRequest(new RefreshTokenResponse()
@@ -75,7 +82,6 @@ public class AuthController : ControllerBase
         
         var token = _tokenGenerator.Token;
         var refreshToken = _tokenGenerator.RefreshToken;
-
         await _dbContext.RefreshTokens.AddAsync(refreshToken);
         await _dbContext.SaveChangesAsync();
 
@@ -124,7 +130,7 @@ public class AuthController : ControllerBase
             });
         }
 
-        var tokenGenerationResult = _tokenGenerator.Generate(existingUser);
+        var tokenGenerationResult = await _tokenGenerator.Generate(existingUser);
         if (tokenGenerationResult.IsFailure)
         {
             return BadRequest(new UserLoginResponse()
@@ -149,7 +155,7 @@ public class AuthController : ControllerBase
         
         return Ok(response);
     }
-
+    
     [HttpPost("[action]")]
     public async Task<IActionResult> UpdateRefreshToken(NewTokenRequest request)
     {
@@ -157,10 +163,7 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new RefreshTokenResponse
             {
-                Errors = new List<string>()
-                {
-                    "Invalid payload"
-                },
+                Errors = new List<string> { "Invalid payload" },
                 Success = false
             });
         }
@@ -204,7 +207,7 @@ public class AuthController : ControllerBase
         }
         
         // create a new Token
-        var tokenResult = _tokenGenerator.Generate(existingUser);
+        var tokenResult = await _tokenGenerator.Generate(existingUser);
         if (tokenResult.IsFailure)
         {
             return BadRequest(new RefreshTokenResponse()

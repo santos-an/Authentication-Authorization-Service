@@ -30,37 +30,19 @@ public static class ApplicationDbInitializer
             .RuleFor(t => t.EmailConfirmed, f => f.Random.Bool())
             .RuleFor(t => t.PhoneNumber, f => f.Person.Phone);
 
-        IdentityUsers = userFaker.GenerateBetween(30, 50);
-
-        var userId = IdentityUsers.ElementAt(0).Id;
-        RefreshTokens = new List<RefreshToken>()
+        Users = userFaker.GenerateBetween(30, 50);
+        Roles = new List<IdentityRole>()
         {
             new()
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                IsUsed = true,
-                IsRevoked = true,
-                Created = DateTime.Now,
-                ExpiryDate = DateTime.Today,
-                JwtId = "jwt 1",
-                Token = "token 1",
-            },
-            new()
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                IsUsed = false,
-                IsRevoked = false,
-                Created = DateTime.Now,
-                ExpiryDate = DateTime.Today,
-                JwtId = "jwt 2",
-                Token = "token 2"
+                Id = Guid.NewGuid().ToString(),
+                Name = Domain.Models.Roles.AppUser,
+                NormalizedName = Domain.Models.Roles.AppUser.ToUpper()
             }
         };
     }
 
     public static IReadOnlyList<Product> Products { get; }
-    public static IReadOnlyList<IdentityUser> IdentityUsers { get; }
-    public static IReadOnlyList<RefreshToken> RefreshTokens { get; }
+    public static IReadOnlyList<IdentityUser> Users { get; }
+    public static IReadOnlyList<IdentityRole> Roles { get; }
 }

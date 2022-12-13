@@ -5,10 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Infrastructure.Configuration;
 
-public class IdentityUserConfiguration : IEntityTypeConfiguration<IdentityUser>
+public class RolesConfiguration : IEntityTypeConfiguration<IdentityRole>
 {
-    public void Configure(EntityTypeBuilder<IdentityUser> builder)
+    
+    public void Configure(EntityTypeBuilder<IdentityRole> builder)
     {
-        builder.HasData(ApplicationDbInitializer.Users);
+        builder.HasData(ApplicationDbInitializer.Roles);
     }
 }

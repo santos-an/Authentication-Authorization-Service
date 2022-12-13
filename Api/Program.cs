@@ -1,14 +1,18 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
-using Api.Extensions;
 using Api.Interfaces;
+using Api.Middlewares;
 using Api.Services;
-using Domain.Extensions;
+using Domain.Models;
 using Infrastructure.Database;
 using Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 namespace Api;
 
@@ -18,18 +22,43 @@ public static class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         ConfigureServices(builder.Services, builder.Configuration);
-
+        
         var app = builder.Build();
+        
         RunMigrations(app);
         ConfigureApp(app);
-
+        
         app.Run();
     }
 
     private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddApi(configuration);
-        services.AddDomain(configuration);
+        var secret = configuration["JwtConfig:Secret"];
+        var issuer = configuration["JwtConfig:Issuer"];
+        var audience = configuration["JwtConfig:Audience"];
+        
+        if (string.IsNullOrEmpty(secret))
+            throw new ApplicationException("Please set a secret in app-settings.json");
+        
+        var key = Encoding.ASCII.GetBytes(secret);
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = false,
+            ValidateIssuerSigningKey = false,
+            ClockSkew = TimeSpan.Zero,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidIssuer = issuer,
+            ValidAudience = audience
+        };
+        
+        services.Configure<JwtConfig>(configuration.GetSection("JwtConfig"));
+        services.AddTransient<JwtSecurityTokenHandler>();
+        services.AddTransient<ITokenGenerator, TokenGenerator>();
+        services.AddTransient<ITokenValidator, TokenValidator>();
+        services.AddSingleton(validationParameters);
+
         services.AddInfrastructure(configuration);
 
         services.AddAuthentication(options =>
@@ -38,32 +67,75 @@ public static class Program
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             })
-            .AddJwtBearer(jwt =>
+            .AddJwtBearer(options =>
             {
-                jwt.SaveToken = true;
-                jwt.TokenValidationParameters =  configuration.Get<TokenValidationParameters>() ?? throw new ApplicationException($"Please set the TokenValidationParameters in the container");
-            });
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = validationParameters;
 
+                options.Events = new JwtBearerEvents()
+                {
+                    OnChallenge = context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        context.Response.ContentType = "application/json";
+
+                        // Ensure we always have an error and error description.
+                        if (string.IsNullOrEmpty(context.Error))
+                            context.Error = "invalid_token";
+                        if (string.IsNullOrEmpty(context.ErrorDescription))
+                            context.ErrorDescription = "This request requires a valid JWT access token to be provided";
+
+                        // Add some extra context for expired tokens.
+                        if (context.AuthenticateFailure != null && context.AuthenticateFailure.GetType() ==
+                            typeof(SecurityTokenExpiredException))
+                        {
+                            var authenticationException = context.AuthenticateFailure as SecurityTokenExpiredException;
+                            context.Response.Headers.Add("x-token-expired",
+                                authenticationException.Expires.ToString("o"));
+                            context.ErrorDescription =
+                                $"The token expired on {authenticationException.Expires.ToString("o")}";
+                        }
+
+                        return context.Response.WriteAsync(JsonSerializer.Serialize(new
+                        {
+                            error = context.Error,
+                            error_description = context.ErrorDescription
+                        }));
+                    }
+                };
+            });
+        services.AddAuthorization();
+        
         services
-            .AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            .AddIdentity<IdentityUser, IdentityRole>(options => options.SignIn.RequireConfirmedAccount = true)
             .AddEntityFrameworkStores<ApplicationDbContext>();
         
-        services.AddCors(options =>
-        {
-            options.AddPolicy("AllowAllHeaders", builder =>
-                {
-                    builder.AllowAnyOrigin()
-                        .AllowAnyHeader()
-                        .AllowAnyMethod();
-                }
-            );
-        });
         services
             .AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
-        
+
         services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen(options => options.CustomSchemaIds(type => type.ToString()));
+        services.AddSwaggerGen(options =>
+        {
+            options.CustomSchemaIds(type => type.ToString());
+            options.SwaggerDoc("v1", new OpenApiInfo { Title = "Products App", Version = "v1" });
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = JwtBearerDefaults.AuthenticationScheme.ToLowerInvariant(),
+                In = ParameterLocation.Header,
+                Name = "Authorization",
+                BearerFormat = "JWT",
+                Description = "Please enter a valid token"
+            });
+        });
+        
+        services.AddCors(options =>
+        {
+            options.AddPolicy("Open", builder => builder.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+        });
     }
 
     private static void RunMigrations(WebApplication app) => app.RunMigrations();
@@ -75,10 +147,16 @@ public static class Program
             app.UseSwagger();
             app.UseSwaggerUI();
         }
-
+        
         app.UseHttpsRedirection();
+        app.UseRouting();
+
+        app.UseMiddleware<JwtMiddleware>();
+        
         app.UseAuthentication();
         app.UseAuthorization();
+        
+        app.UseCors("Open");
         app.MapControllers();
     }
 }

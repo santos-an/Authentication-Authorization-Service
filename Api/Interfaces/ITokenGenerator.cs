@@ -7,7 +7,7 @@ namespace Api.Interfaces;
 
 public interface ITokenGenerator
 {
-    Result Generate(IdentityUser user);
+    Task<Result> Generate(IdentityUser user);
     
     SecurityToken SecurityToken { get; }
     string Token { get; }

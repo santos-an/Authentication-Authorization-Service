@@ -13,6 +13,7 @@ public static class WebApplicationExtensions
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     
         context.Database.Migrate();
+        context.Database.EnsureCreated();
         
         return app;
     }

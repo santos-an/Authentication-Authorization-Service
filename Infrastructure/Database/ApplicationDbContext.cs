@@ -19,5 +19,6 @@ public class ApplicationDbContext : IdentityDbContext
         builder.ApplyConfiguration(new ProductConfiguration());
         builder.ApplyConfiguration(new IdentityUserConfiguration());
         builder.ApplyConfiguration(new RefreshTokenConfiguration());
+        builder.ApplyConfiguration(new RolesConfiguration());
     }
 }

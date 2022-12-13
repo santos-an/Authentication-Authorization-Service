@@ -15,17 +15,14 @@ public class TokenValidator : ITokenValidator
     private readonly JwtSecurityTokenHandler _handler;
     private readonly TokenValidationParameters _validationParameters;
 
-    public TokenValidator(JwtSecurityTokenHandler handler, ApplicationDbContext dbContext, TokenValidationParameters validationParameters)
+    public TokenValidator(ApplicationDbContext dbContext, JwtSecurityTokenHandler handler, TokenValidationParameters validationParameters)
     {
-        _handler = handler;
         _dbContext = dbContext;
+        _handler = new JwtSecurityTokenHandler();
         _validationParameters = validationParameters;
     }
 
-    public async Task<Result> Validate(string token, string refreshToken)
-    {
-        return await TryValidateToken(token, refreshToken);
-    }
+    public async Task<Result> Validate(string token, string refreshToken) => await TryValidateToken(token, refreshToken);
 
     private async Task<Result> TryValidateToken(string token, string refreshToken)
     {
@@ -110,7 +107,7 @@ public class TokenValidator : ITokenValidator
         
         var utcExpiryDate = long.Parse(expiryClaim);
         var expiryDateTime = UnixTimeSpampToDateTime(utcExpiryDate);
-
+        
         return DateTime.Now > expiryDateTime;
     }
 }
