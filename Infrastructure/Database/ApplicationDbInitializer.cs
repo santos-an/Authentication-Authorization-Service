@@ -90,9 +90,9 @@ public static class ApplicationDbInitializer
         Companies = companyFaker.GenerateBetween(20, 40);
     }
     
-    public static IReadOnlyList<Product>? Products { get; private set; }
-    public static IReadOnlyList<IdentityUser>? Users { get; private set; }
-    public static IReadOnlyList<IdentityRole>? Roles { get; private set; }
-    public static IReadOnlyList<IdentityUserRole<string>>? UserRoles { get; private set; }
+    public static IReadOnlyList<Product> Products { get; private set; }
+    public static IReadOnlyList<IdentityUser> Users { get; private set; }
+    public static IReadOnlyList<IdentityRole> Roles { get; private set; }
+    public static IReadOnlyList<IdentityUserRole<string>> UserRoles { get; private set; }
     public static IReadOnlyList<Company> Companies { get; private set; }
 }
