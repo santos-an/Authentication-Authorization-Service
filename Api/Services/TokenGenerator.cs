@@ -36,7 +36,7 @@ public class TokenGenerator : ITokenGenerator
             Issuer = _jwt.Issuer,
             Audience = _jwt.Audience,
             Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(5),   
+            Expires = DateTime.UtcNow.AddMinutes(_jwt.TokenExpiration),   
             SigningCredentials = new SigningCredentials(mySecurityKey, SecurityAlgorithms.HmacSha256Signature)
         };
 
@@ -48,7 +48,7 @@ public class TokenGenerator : ITokenGenerator
             IsUsed = false,
             IsRevoked = false,
             Created = DateTime.Now,
-            ExpiryDate = DateTime.UtcNow.AddMonths(6),
+            ExpiryDate = DateTime.UtcNow.AddMonths(_jwt.RefreshTokenExpiration),
             UserId = user.Id,
             Token = RandomString(35) + Guid.NewGuid()   // Refresh Token identifier
         };
@@ -77,14 +77,15 @@ public class TokenGenerator : ITokenGenerator
         foreach (var userRole in userRoles)
         {
             var existingRole = await _roleManager.FindByNameAsync(userRole);
-            if (existingRole is null) continue;
+            if (existingRole is null) 
+                continue;
             
-            // add the user role to the claim
+            // add the ROLE
             claims.Add(new Claim(ClaimTypes.Role, userRole));
                 
-            // get claims assigned to a role, from the database
-            var roleClaims = await _roleManager.GetClaimsAsync(existingRole);
-            claims.AddRange(roleClaims);
+            // get all claims from the ROLE
+            var existingRoleClaims = await _roleManager.GetClaimsAsync(existingRole);
+            claims.AddRange(existingRoleClaims);
         }
 
         return claims;

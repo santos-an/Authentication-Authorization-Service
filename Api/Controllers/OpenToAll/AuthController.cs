@@ -157,7 +157,7 @@ public class AuthController : ControllerBase
     }
     
     [HttpPost("[action]")]
-    public async Task<IActionResult> UpdateRefreshToken(NewTokenRequest request)
+    public async Task<IActionResult> UpdateToken(NewTokenRequest request)
     {
         if (!ModelState.IsValid)
         {

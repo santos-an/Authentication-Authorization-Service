@@ -10,7 +10,7 @@ namespace Api;
 
 public static class Program
 {
-    static void Main(string[] args)
+    private static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
         ConfigureServices(builder.Services, builder.Configuration);
