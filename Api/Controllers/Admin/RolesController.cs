@@ -1,12 +1,16 @@
 ﻿using Domain.Dtos.Responses;
+using Domain.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace Api.Controllers;
+namespace Api.Controllers.Admin;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = PolicyType.Administrator)]
 public class RolesController : ControllerBase
 {
     private readonly ILogger<RolesController> _logger;

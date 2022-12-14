@@ -8,6 +8,7 @@ namespace Infrastructure.Database;
 public class ApplicationDbContext : IdentityDbContext
 {
     public virtual DbSet<Product> Products { get; set; }
+    public virtual DbSet<Company> Companies { get; set; }
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
@@ -16,9 +17,11 @@ public class ApplicationDbContext : IdentityDbContext
     {
         base.OnModelCreating(builder);
 
+        builder.ApplyConfiguration(new UserConfiguration());
+        builder.ApplyConfiguration(new RoleConfiguration());
+        builder.ApplyConfiguration(new UserRolesConfiguration());
         builder.ApplyConfiguration(new ProductConfiguration());
-        builder.ApplyConfiguration(new IdentityUserConfiguration());
         builder.ApplyConfiguration(new RefreshTokenConfiguration());
-        builder.ApplyConfiguration(new RolesConfiguration());
+        builder.ApplyConfiguration(new CompanyConfiguration());
     }
 }

@@ -8,12 +8,14 @@ public class JwtMiddleware
     private const string Bearer = "bearer";
     
     private readonly RequestDelegate _next;
+    private readonly ILogger<JwtMiddleware> _logger;
     private readonly JwtSecurityTokenHandler _handler;
 
-    public JwtMiddleware(RequestDelegate next, JwtSecurityTokenHandler handler)
+    public JwtMiddleware(RequestDelegate next, ILogger<JwtMiddleware> logger, JwtSecurityTokenHandler handler)
     {
-        _handler = handler;
         _next = next;
+        _logger = logger;
+        _handler = handler;
     }
 
     public async Task Invoke(HttpContext context)
@@ -21,8 +23,9 @@ public class JwtMiddleware
         var authorizationHeaders = context.Request.Headers[HeaderNames.Authorization].ToString();
         if (StartsWith(authorizationHeaders, Bearer))
         {
-            // VALIDATE TOKEN ... 
             var jwt = _handler.ReadJwtToken(authorizationHeaders[Bearer.Length..].TrimStart());
+            
+            _logger.LogInformation($"Accessing a protected resource using token: {jwt.Id} id");
         }
 
         await _next(context);

@@ -15,16 +15,16 @@ public class TokenValidator : ITokenValidator
     private readonly JwtSecurityTokenHandler _handler;
     private readonly TokenValidationParameters _validationParameters;
 
-    public TokenValidator(ApplicationDbContext dbContext, JwtSecurityTokenHandler handler, TokenValidationParameters validationParameters)
+    public TokenValidator(ApplicationDbContext dbContext, TokenValidationParameters validationParameters)
     {
         _dbContext = dbContext;
         _handler = new JwtSecurityTokenHandler();
         _validationParameters = validationParameters;
     }
 
-    public async Task<Result> Validate(string token, string refreshToken) => await TryValidateToken(token, refreshToken);
+    public async Task<Result> ValidateAsync(string token, string refreshToken) => await TryValidateTokenAsync(token, refreshToken);
 
-    private async Task<Result> TryValidateToken(string token, string refreshToken)
+    private async Task<Result> TryValidateTokenAsync(string token, string refreshToken)
     {
         try
         {

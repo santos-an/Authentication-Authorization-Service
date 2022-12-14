@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Infrastructure.Configuration;
 
-public class IdentityUserConfiguration : IEntityTypeConfiguration<IdentityUser>
+public class UserConfiguration : IEntityTypeConfiguration<IdentityUser>
 {
     public void Configure(EntityTypeBuilder<IdentityUser> builder)
     {

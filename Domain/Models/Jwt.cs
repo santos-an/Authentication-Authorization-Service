@@ -1,6 +1,6 @@
 ﻿namespace Domain.Models;
 
-public class JwtConfig
+public class Jwt
 {
     public string Secret { get; set; }
     public string Issuer { get; set; }

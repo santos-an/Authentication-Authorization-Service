@@ -12,14 +12,14 @@ namespace Api.Services;
 
 public class TokenGenerator : ITokenGenerator
 {
-    private readonly JwtConfig _jwtConfig;
+    private readonly Jwt _jwt;
     private readonly JwtSecurityTokenHandler _handler;
     private readonly UserManager<IdentityUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     
-    public TokenGenerator(IOptionsMonitor<JwtConfig> optionsMonitor, JwtSecurityTokenHandler handler, UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
+    public TokenGenerator(IOptionsMonitor<Jwt> optionsMonitor, JwtSecurityTokenHandler handler, UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
     {
-        _jwtConfig = optionsMonitor.CurrentValue;
+        _jwt = optionsMonitor.CurrentValue;
         _handler = handler;
         _userManager = userManager;
         _roleManager = roleManager;
@@ -27,18 +27,14 @@ public class TokenGenerator : ITokenGenerator
 
     public async Task<Result> Generate(IdentityUser user)
     {
-        var secret = _jwtConfig.Secret;
-        var issuer = _jwtConfig.Issuer;
-        var audience = _jwtConfig.Audience;
-        
-        var key = Encoding.ASCII.GetBytes(secret);
+        var key = Encoding.ASCII.GetBytes(_jwt.Secret);
         var claims = await GetAllValidClaimsFor(user);
 
         var mySecurityKey = new SymmetricSecurityKey(key);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Issuer = issuer,
-            Audience = audience,
+            Issuer = _jwt.Issuer,
+            Audience = _jwt.Audience,
             Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddMinutes(5),   
             SigningCredentials = new SigningCredentials(mySecurityKey, SecurityAlgorithms.HmacSha256Signature)
@@ -64,7 +60,7 @@ public class TokenGenerator : ITokenGenerator
     {
         var claims = new List<Claim>()
         {
-            // new Claim("Id", user.Id),
+            new("id", user.Id),
             new(JwtRegisteredClaimNames.Email, user.Email),
             new(JwtRegisteredClaimNames.Sub, user.Email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) // id to be used for the refresh token
@@ -80,15 +76,15 @@ public class TokenGenerator : ITokenGenerator
         // attach the roles from the DB
         foreach (var userRole in userRoles)
         {
-            var role = await _roleManager.FindByNameAsync(userRole);
-            if (role is not null)
-            {
-                // add the user role to the claim
-                claims.Add(new Claim(ClaimTypes.Role, userRole));
+            var existingRole = await _roleManager.FindByNameAsync(userRole);
+            if (existingRole is null) continue;
+            
+            // add the user role to the claim
+            claims.Add(new Claim(ClaimTypes.Role, userRole));
                 
-                var roleClaims = await _roleManager.GetClaimsAsync(role);
-                claims.AddRange(roleClaims);
-            }
+            // get claims assigned to a role, from the database
+            var roleClaims = await _roleManager.GetClaimsAsync(existingRole);
+            claims.AddRange(roleClaims);
         }
 
         return claims;

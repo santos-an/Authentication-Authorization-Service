@@ -7,17 +7,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace Api.Controllers;
+namespace Api.Controllers.OpenToAll;
 
 [ApiController]
 [Route("[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<IdentityUser> _userManager;
+    private readonly ITokenGenerator _tokenGenerator;
     private readonly ApplicationDbContext _dbContext;
     private readonly ITokenValidator _validator;
-    private readonly ITokenGenerator _tokenGenerator;
-
+    
     public AuthController(UserManager<IdentityUser> userManager, ITokenGenerator tokenGenerator, ApplicationDbContext dbContext, ITokenValidator validator)
     {
         _userManager = userManager;
@@ -60,7 +60,7 @@ public class AuthController : ControllerBase
         }
 
         // add role to user
-        var roleResult = await _userManager.AddToRoleAsync(user, Roles.AppUser);
+        var roleResult = await _userManager.AddToRoleAsync(user, RoleType.Normal);
         if (!roleResult.Succeeded)
         {
             return BadRequest(new RefreshTokenResponse()
@@ -109,7 +109,7 @@ public class AuthController : ControllerBase
                 Success = false
             });
         }
-
+        
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser is null)
         {
@@ -119,7 +119,7 @@ public class AuthController : ControllerBase
                 Success = false
             });
         }
-
+        
         var isPasswordCorrect = await _userManager.CheckPasswordAsync(existingUser, request.Password);
         if (!isPasswordCorrect)
         {
@@ -129,7 +129,7 @@ public class AuthController : ControllerBase
                 Success = false
             });
         }
-
+        
         var tokenGenerationResult = await _tokenGenerator.Generate(existingUser);
         if (tokenGenerationResult.IsFailure)
         {
@@ -167,9 +167,9 @@ public class AuthController : ControllerBase
                 Success = false
             });
         }
-
+        
         // Validation
-        var tokenValidationResult = await _validator.Validate(request.Token, request.RefreshToken);
+        var tokenValidationResult = await _validator.ValidateAsync(request.Token, request.RefreshToken);
         if (tokenValidationResult.IsFailure)
         {
             return BadRequest(new RefreshTokenResponse
