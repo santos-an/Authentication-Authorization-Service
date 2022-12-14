@@ -21,7 +21,7 @@ public class TokenValidator : ITokenValidator
         _handler = new JwtSecurityTokenHandler();
         _validationParameters = validationParameters;
     }
-
+    
     public async Task<Result> ValidateAsync(string token, string refreshToken) => await TryValidateTokenAsync(token, refreshToken);
 
     private async Task<Result> TryValidateTokenAsync(string token, string refreshToken)
@@ -40,23 +40,23 @@ public class TokenValidator : ITokenValidator
                 return Result.Failure("Token algorithms does not matched");
 
             // Validation 4 - db check
-            var storedRefreshToken = await GetPersistedToken(refreshToken);
-            if (storedRefreshToken is null)
+            var existingRefreshToken = await GetPersistedToken(refreshToken);
+            if (existingRefreshToken is null)
                 return Result.Failure("Token does not exist in the database");
 
             // Validation 5 - if was already used
-            if (storedRefreshToken.IsUsed)
+            if (existingRefreshToken.IsUsed)
                 return Result.Failure("Token has been used");
 
             // Validation 6 - if was already revoked
-            if (storedRefreshToken.IsRevoked)
+            if (existingRefreshToken.IsRevoked)
                 return Result.Failure("Token has been revoked");
 
             // Validation 7 - validated the jwt id  
             var jtiId = GetJwtId(tokenInVerification);
-            if (!IsValidJwtId(jtiId, storedRefreshToken))
+            if (!IsValidJwtId(jtiId, existingRefreshToken))
                 return Result.Failure("Jwt id Token does not matched");
-
+            
             return Result.Success();
         }
         catch (Exception e)
@@ -76,7 +76,7 @@ public class TokenValidator : ITokenValidator
 
     private async Task<RefreshToken?> GetPersistedToken(string refreshToken)
     {
-        return await _dbContext.RefreshTokens.FirstOrDefaultAsync(t => t.Token == refreshToken);
+        return await _dbContext.RefreshTokens.FirstOrDefaultAsync(t => t.Value == refreshToken);
     }
 
     private static string GetJwtId(ClaimsPrincipal tokenInVerification)
@@ -88,9 +88,9 @@ public class TokenValidator : ITokenValidator
         return jtiClaim.Value;
     }
 
-    private static bool IsValidJwtId(string jtiId, RefreshToken storedRefreshToken)
+    private static bool IsValidJwtId(string jtiId, RefreshToken refreshToken)
     {
-        return !string.IsNullOrEmpty(jtiId) && storedRefreshToken.JwtId == jtiId;
+        return !string.IsNullOrEmpty(jtiId) && refreshToken.JwtId == jtiId;
     }
 
     public bool IsExpired(string token)

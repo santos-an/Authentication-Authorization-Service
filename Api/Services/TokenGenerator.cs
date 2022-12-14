@@ -17,9 +17,9 @@ public class TokenGenerator : ITokenGenerator
     private readonly UserManager<IdentityUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     
-    public TokenGenerator(IOptionsMonitor<Jwt> optionsMonitor, JwtSecurityTokenHandler handler, UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
+    public TokenGenerator(IOptionsMonitor<Jwt> options, JwtSecurityTokenHandler handler, UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager)
     {
-        _jwt = optionsMonitor.CurrentValue;
+        _jwt = options.CurrentValue;
         _handler = handler;
         _userManager = userManager;
         _roleManager = roleManager;
@@ -41,7 +41,7 @@ public class TokenGenerator : ITokenGenerator
         };
 
         SecurityToken = _handler.CreateToken(tokenDescriptor);
-        Token = _handler.WriteToken(SecurityToken);
+        AccessToken = _handler.WriteToken(SecurityToken);
         RefreshToken = new RefreshToken
         {
             JwtId = SecurityToken.Id,
@@ -50,7 +50,7 @@ public class TokenGenerator : ITokenGenerator
             Created = DateTime.Now,
             ExpiryDate = DateTime.UtcNow.AddMonths(_jwt.RefreshTokenExpiration),
             UserId = user.Id,
-            Token = RandomString(35) + Guid.NewGuid()   // Refresh Token identifier
+            Value = RandomString(35) + Guid.NewGuid()   // The actual refresh Token value
         };
         
         return Result.Success();
@@ -107,7 +107,7 @@ public class TokenGenerator : ITokenGenerator
         return builder.ToString();
     }
     
-    public string Token { get; private set; }
+    public string AccessToken { get; private set; }
     public SecurityToken SecurityToken { get; private set; }
     public RefreshToken RefreshToken { get; private set; }
 }

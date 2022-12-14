@@ -10,6 +10,6 @@ public interface ITokenGenerator
     Task<Result> Generate(IdentityUser user);
     
     SecurityToken SecurityToken { get; }
-    string Token { get; }
+    string AccessToken { get; }
     RefreshToken RefreshToken { get; }
 }

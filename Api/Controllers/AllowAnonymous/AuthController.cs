@@ -7,15 +7,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace Api.Controllers.OpenToAll;
+namespace Api.Controllers.AllowAnonymous;
 
 [ApiController]
 [Route("[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<IdentityUser> _userManager;
-    private readonly ITokenGenerator _tokenGenerator;
     private readonly ApplicationDbContext _dbContext;
+    private readonly ITokenGenerator _tokenGenerator;
     private readonly ITokenValidator _validator;
     
     public AuthController(UserManager<IdentityUser> userManager, ITokenGenerator tokenGenerator, ApplicationDbContext dbContext, ITokenValidator validator)
@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new UserRegistrationResponse
             {
-                Errors = new List<string> { "Invalid paylod" },
+                Errors = new List<string> { "Invalid payload" },
                 Success = false
             });
         }
@@ -80,15 +80,16 @@ public class AuthController : ControllerBase
             });
         }
         
-        var token = _tokenGenerator.Token;
+        var token = _tokenGenerator.AccessToken;
         var refreshToken = _tokenGenerator.RefreshToken;
+        
         await _dbContext.RefreshTokens.AddAsync(refreshToken);
         await _dbContext.SaveChangesAsync();
 
         var response = new UserRegistrationResponse
         {
             Token = token,
-            RefreshToken = refreshToken.Token,
+            RefreshToken = refreshToken.Value,
             Success = true
         };
         
@@ -140,7 +141,7 @@ public class AuthController : ControllerBase
             });
         }
         
-        var token = _tokenGenerator.Token;
+        var token = _tokenGenerator.AccessToken;
         var refreshToken = _tokenGenerator.RefreshToken;
 
         await _dbContext.RefreshTokens.AddAsync(refreshToken);
@@ -149,7 +150,7 @@ public class AuthController : ControllerBase
         var response = new UserLoginResponse
         {
             Token = token,
-            RefreshToken = refreshToken.Token,
+            RefreshToken = refreshToken.Value,
             Success = true
         };
         
@@ -191,7 +192,7 @@ public class AuthController : ControllerBase
         }
 
         // Update current token as USED
-        var existingRefreshToken = await _dbContext.RefreshTokens.FirstOrDefaultAsync(t => t.Token == request.RefreshToken);
+        var existingRefreshToken = await _dbContext.RefreshTokens.FirstOrDefaultAsync(t => t.Value == request.RefreshToken);
         existingRefreshToken.IsUsed = true;
         
         _dbContext.RefreshTokens.Update(existingRefreshToken);
@@ -217,7 +218,7 @@ public class AuthController : ControllerBase
             });
         }
         
-        var token = _tokenGenerator.Token;
+        var token = _tokenGenerator.AccessToken;
         var refreshToken = _tokenGenerator.RefreshToken;
 
         await _dbContext.RefreshTokens.AddAsync(refreshToken);
@@ -226,7 +227,7 @@ public class AuthController : ControllerBase
         var response = new RefreshTokenResponse()
         {
             Token = token,
-            RefreshToken = refreshToken.Token,
+            RefreshToken = refreshToken.Value,
             Success = true
         };
         

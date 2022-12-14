@@ -18,7 +18,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
             .HasForeignKey(u => u.UserId);
 
         builder.Property(t => t.JwtId).IsRequired();
-        builder.Property(t => t.Token).IsRequired();
+        builder.Property(t => t.Value).IsRequired();
         
         builder.Property(t => t.IsRevoked).IsRequired();
         builder.Property(t => t.IsUsed).IsRequired();

@@ -8,8 +8,8 @@ public class RefreshToken
     
     public string UserId { get; set; }
     public IdentityUser? User { get; set; }
-
-    public string Token { get; set; }   // the actual token value
+    
+    public string Value { get; set; }   // the actual token value   
     public string JwtId { get; set; }   // the id of the jwt token, that the refresh token belongs to
     
     public bool IsUsed { get; set; }
