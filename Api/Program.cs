@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Api.Extensions;
+using Api.Configuration;
 using Api.Middlewares;
 using Domain.Models;
 using Infrastructure.Extensions;
@@ -30,10 +30,7 @@ public static class Program
         services.AddInfrastructure(configuration);
         
         // Authorization & Authentication
-        var tokenValidationParameters = services.BuildServiceProvider().GetService<TokenValidationParameters>();
-        if (tokenValidationParameters is null)
-            throw new Exception("TokenValidationParameter is null. Please set the service in the container");
-        
+        var tokenValidationParameters = services.GetTokenValidationParameters();
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .WithConfiguration(tokenValidationParameters);

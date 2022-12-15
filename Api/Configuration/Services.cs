@@ -7,14 +7,21 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-namespace Api.Extensions;
+namespace Api.Configuration;
 
-public static class ServiceCollectionExtensions
+public static class Services
 {
     private const string Jwt = "Jwt";
     private const string JwtSecret = $"{Jwt}:Secret";
     private const string JwtIssuer = $"{Jwt}:Issuer";
     private const string JwtAudience = $"{Jwt}:Audience";
+
+    public static void AddDi(this IServiceCollection services)
+    {
+        services.AddTransient<JwtSecurityTokenHandler>();
+        services.AddTransient<ITokenGenerator, TokenGenerator>();
+        services.AddTransient<ITokenValidator, TokenValidator>();
+    }
 
     public static void AddTokenValidation(this IServiceCollection services, IConfiguration configuration)
     {
@@ -39,7 +46,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(validationParameters);
         services.Configure<Jwt>(configuration.GetSection(Jwt));
     }
-    
+
+    public static TokenValidationParameters GetTokenValidationParameters(this IServiceCollection services)
+    {
+        var tokenValidationParameters = services.BuildServiceProvider().GetService<TokenValidationParameters>();
+        if (tokenValidationParameters is null)
+            throw new Exception("TokenValidationParameter is null. Please set the service in the container");
+        
+        return tokenValidationParameters;
+    }
+
     public static void AddSwaggerUi(this IServiceCollection services)
     {
         services.AddSwaggerGen(options =>
@@ -56,12 +72,5 @@ public static class ServiceCollectionExtensions
                 Description = "Please enter a valid token"
             });
         });
-    }
-
-    public static void AddDi(this IServiceCollection services)
-    {
-        services.AddTransient<JwtSecurityTokenHandler>();
-        services.AddTransient<ITokenGenerator, TokenGenerator>();
-        services.AddTransient<ITokenValidator, TokenValidator>();
     }
 }

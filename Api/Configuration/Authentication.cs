@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Api.Extensions;
+namespace Api.Configuration;
 
-public static class AuthenticationBuilderExtensions
+public static class Authentication
 {
     public static AuthenticationBuilder WithConfiguration(this AuthenticationBuilder builder, TokenValidationParameters tokenValidationParameters)
     {
