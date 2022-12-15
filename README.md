@@ -19,7 +19,7 @@ We have several endpoints, that require different authentication policies for ac
 
 - GET `/Claims/GetAll` - Returns all claims
 - GET `/Claims/GetUserClaims` - Returns the Claims for a given user
-- POST `/Claims/AddClaimToUser` - Adds a new claim to a user
+- POST `/Claims/AddClaimToUser` - Add a new claim to a user
 
 **Company endpoint**
 
